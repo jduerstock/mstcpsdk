@@ -1,0 +1,17 @@
+This is a simple windows program that demonstrates windows sockets 
+library UDP commands.  You need to have the entry "local_node"  with 
+your IP address in your hosts file.  This program uses hard coded ports 
+1025 and 1026.
+
+To run it: after loading the application in windows, click on Options 
+(the only menu choice). Then click on UDP_commands.  You should see 
+the following 4 lines of output:
+    Starting UDP sample application
+    sent packet 
+    received packet from IP addr=???.???.???.???
+    End of UDP sample program.
+
+If you wish to modify this program, first modify the makefile (winudp.mak)
+if necessary, and then remake with pvcs make:
+   make -f winupd
+

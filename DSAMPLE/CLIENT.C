@@ -1,0 +1,137 @@
+/*      COPYRIGHT, (c) HEWLETT PACKARD CO. 1990,1991 */
+/*      All rights reserved. No part of this program */
+/*      may be copied or used without the express    */
+/*      written consent of HEWLETT PACKARD Corp.     */
+            
+#include <time.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <stdio.h>
+#include <stdlib.h>
+            
+#define BUFFER_SIZE 1000
+#define LINE_LEN    70
+            
+char sendbuf[BUFFER_SIZE];
+char recvbuf[BUFFER_SIZE];
+struct sockaddr_in server_addr, client_addr;
+            
+            
+int sleep( seconds )
+int seconds;
+{
+    long start_seconds, current_seconds, end_seconds;
+
+    time( &start_seconds );
+    end_seconds = start_seconds + (long) seconds;
+
+    do {
+        time( &current_seconds );
+    } while ( current_seconds < end_seconds );
+            
+    return( 0 );
+}
+            
+            
+/*
+**  This program acts as a sockets IPC client.  It will attempt to connect to
+**  a remote server node, send, and then receive data.
+*/
+            
+int errno;
+
+main( argc, argv )
+int argc;
+char *argv[];
+{
+    int rc, i, len, total, size, sd, seconds;
+            
+    if ( argc < 5 ) {
+        printf( "Usage: %s <faddr> <fport> <xfer_size> <delay>\n", argv[0] );
+        exit( 1 );
+    }
+            
+    size  = atoi( argv[3] );
+            
+            
+    /*
+    **  Create a local endpoint for communication.
+    */
+            
+    sd = socket( AF_INET, SOCK_STREAM, 0 );
+    if ( sd < 0 ) {
+        printf( "Error: socket() call failed w/rc=%d, errno=%d\n", sd, errno );
+        exit( 1 );
+    }
+    printf( "socket() returned %d\n", sd );
+            
+            
+    /*
+    **  Fill in a socket address structure with the necessary information
+    **  about the remote server node (remote node IP address and port for
+    **  incoming connections) and attempt to connect to the server. This connect
+    **  call will block until the remote server has accepted the connection or
+    **  the connection request times out.
+    */
+
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons( atoi( argv[2] ) );
+    server_addr.sin_addr.s_addr = inet_addr( argv[1] );
+            
+    rc = connect( sd, (struct sockaddr *) &server_addr, sizeof(server_addr) );
+    if ( rc < 0 ) {
+        printf( "Error: connect() call failed w/errno=%d\n", errno );
+        close_socket( sd );
+        exit( 1 );
+    }
+    printf( "Established connection with 0x%lx\n", server_addr.sin_addr );
+    seconds = atoi( argv[4] );
+    printf( "Waiting %d seconds before sending data...\n", seconds );
+    sleep( seconds );
+            
+    /*
+    **  Send the number of bytes specified on the command line to the server.
+    */
+            
+    for (i=0; i<size; i++)
+        sendbuf[i] = ( i % 26 ) + 'a';
+    len = send( sd, sendbuf, size, 0 );
+            
+            
+    /*
+    **  After the server has received all of the data, it will send it back to
+    **  us.  As described in the server code comments, we must loop on recv()
+    **  calls until all data has been received.
+    */
+            
+    total = 0;
+    printf( "Now attempting to receive data...\n" );
+    do {
+        len = recv( sd, &recvbuf[total], size-total, 0 );
+        if ( len < 0 ) {
+            printf( "Error: recv() call failed w/errno=%d\n", errno );
+            close_socket( sd );
+            exit( 1 );
+        }
+        printf( "recv() returned %d bytes\n", len );
+        total += len;
+    } while ( total < size );
+            
+    printf( "recvbuf contains:\n" );
+    for (i=0; i<len; i++) {
+        printf( "%c", recvbuf[i] );
+        if ( i % LINE_LEN == LINE_LEN - 1 ) {
+            printf( "\n" );
+        }
+    }
+    printf( "\n" );
+            
+            
+    /*
+    **  All data has been transferred.  Close the socket and exit.
+    */
+            
+    close_socket( sd );
+    exit( 0 );
+}
